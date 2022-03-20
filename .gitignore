@@ -1,0 +1,5 @@
+.vscode/
+.idea/
+test-db/
+db
+db.exe
