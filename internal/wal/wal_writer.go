@@ -34,10 +34,6 @@ func NewWalWriter(file io.Writer, opts *WalOptions) *WalWriter {
 func (w *WalWriter) WriteLog(l *Log) (int, error) {
 	keyLen := len(l.Key)
 	valLen := len(l.Value)
-	logType := logAdd
-	if l.IsDelete {
-		logType = logDelete
-	}
 
 	// 4byte length for each key and value
 	// data layout: key length (4 byte) | value length (4 byte) | log type (1 byte)  | key | value
@@ -51,8 +47,7 @@ func (w *WalWriter) WriteLog(l *Log) (int, error) {
 
 	binary.LittleEndian.PutUint32(allData[0:], uint32(keyLen))
 	binary.LittleEndian.PutUint32(allData[4:], uint32(valLen))
-	allData[8] = logType
-	c = 9
+	c = 8
 
 	for ; kIdx < keyLen && c < totalLen; kIdx++ {
 		allData[c] = l.Key[kIdx]
@@ -79,11 +74,9 @@ func (w *WalWriter) Write(b []byte) (int, error) {
 		leftOver := w.opts.BlockSize - w.offset
 		if leftOver < BlockHeaderSize {
 			if leftOver > 0 {
-				// fmt.Println("left over filling: ", leftOver, " at ", w.total)
 				w.f.Write(trailer[:leftOver])
 			}
 			w.total += w.offset + leftOver
-			//fmt.Println("total: ", w.total)
 			w.offset = 0
 		}
 		offset = len(b) - rem

@@ -66,9 +66,7 @@ func (w *WalReader) ReadLog(reader io.Reader) (*Log, error) {
 	if block.Type == typeFull {
 		keyLen := binary.LittleEndian.Uint32(block.Payload[0:4])
 		valLen := binary.LittleEndian.Uint32(block.Payload[4:8])
-		logType := block.Payload[8]
 		l := Log{}
-		l.IsDelete = logType == logDelete
 
 		l.Key = make([]byte, keyLen)
 		copy(l.Key, block.Payload[LogHeaderSize:LogHeaderSize+keyLen])
@@ -90,10 +88,8 @@ func (w *WalReader) ReadLog(reader io.Reader) (*Log, error) {
 
 		keyLen := binary.LittleEndian.Uint32(block.Payload[0:4])
 		valLen := binary.LittleEndian.Uint32(block.Payload[4:8])
-		logType := block.Payload[8]
-		curIdx := uint32(9)
+		curIdx := uint32(LogHeaderSize)
 		l := Log{}
-		l.IsDelete = logType == logDelete
 		l.Key = make([]byte, keyLen)
 		l.Value = make([]byte, valLen)
 		keyIdx := uint32(0)

@@ -7,7 +7,7 @@ import (
 	"log"
 )
 
-func main() {
+func maint() {
 
 	buf := bytes.NewBuffer(nil)
 	buf2 := bytes.NewBuffer(nil)

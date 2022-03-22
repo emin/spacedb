@@ -14,7 +14,7 @@ import (
 	"github.com/emin/go-kv-db/helpers"
 )
 
-func mainT() {
+func main() {
 
 	memProf := flag.String("memprofile", "", "write memory profile to this file")
 	cpuProf := flag.String("cpuprofile", "", "write cpu profile to this file")

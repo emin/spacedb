@@ -74,11 +74,7 @@ func New(dbPath string) GoDB {
 		for it.Next() {
 			logs := it.RecoverCurrentFile()
 			for _, l := range logs {
-				if l.IsDelete {
-					db.Delete(l.Key)
-				} else {
-					db.Set(l.Key, Deserialize(l.Value))
-				}
+				db.Set(l.Key, Deserialize(l.Value))
 			}
 			err := it.RemoveCurrentFile()
 			if err != nil {
@@ -152,9 +148,8 @@ func (g *GoDBImpl) Set(key []byte, value *DBValue) error {
 	defer g.rwLock.Unlock()
 
 	err := g.walManager.Add(&wal.Log{
-		Key:      key,
-		Value:    value.Value,
-		IsDelete: value.IsDeleted,
+		Key:   key,
+		Value: value.Serialize(),
 	})
 	if err != nil {
 		log.Println(err)
@@ -184,9 +179,6 @@ func (g *GoDBImpl) Get(key []byte) *DBValue {
 
 		// log.Printf("searching in %v min: %v max: %v\n", m.FileName, string(*m.MinKey), string(*m.MaxKey))
 		if bytes.Compare(key, *m.MinKey) >= 0 && bytes.Compare(key, *m.MaxKey) <= 0 {
-
-			log.Println("key can be in sstable ", m.FileName)
-
 			table := internal.NewSSTable(g.dbPath, m.FileName)
 			defer table.CloseFile()
 			pos, err := table.FindKeyInIndex(key)
@@ -209,15 +201,17 @@ func (g *GoDBImpl) Delete(key []byte) error {
 	g.rwLock.Lock()
 	defer g.rwLock.Unlock()
 
+	delVal := &DBValue{IsDeleted: true}
+
 	err := g.walManager.Add(&wal.Log{
-		Key:      key,
-		IsDelete: true,
+		Key:   key,
+		Value: delVal.Serialize(),
 	})
 	if err != nil {
 		log.Println(err)
 		return err
 	}
-	delVal := &DBValue{IsDeleted: true}
+
 	g.curMemTable.Set(key, delVal.Serialize())
 
 	return nil

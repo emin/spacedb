@@ -8,13 +8,15 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func testPath() string {
-	return fmt.Sprintf("%v%cdb-path%c", os.TempDir(), os.PathSeparator, os.PathSeparator)
+	// return fmt.Sprintf("%v%cdb-path%c", os.TempDir(), os.PathSeparator, os.PathSeparator)
+	return path.Join(os.TempDir(), "db-path")
 }
 
 func beforeTest() {
@@ -53,16 +55,16 @@ func TestManager_Init(t *testing.T) {
 	beforeTest()
 	defer afterTest()
 	a := assert.New(t)
-	path := testPath()
-	m := NewManager(path)
+	p := testPath()
+	m := NewManager(p)
 	m.Init()
 	defer m.Close()
-	walDir := fmt.Sprintf("%vwal%c", testPath(), os.PathSeparator)
+	walDir := path.Join(testPath(), "wal")
 	_, err := os.Stat(walDir)
 	a.ErrorIs(err, nil)
 
 	a.Equal(1, m.counter)
-	_, err = os.Stat(fmt.Sprintf("%vwal%c0", testPath(), os.PathSeparator))
+	_, err = os.Stat(path.Join(walDir, "0.log"))
 	a.ErrorIs(err, nil)
 }
 
@@ -70,8 +72,7 @@ func TestManager_Add(t *testing.T) {
 	beforeTest()
 	defer afterTest()
 	a := assert.New(t)
-	path := testPath()
-	m := NewManager(path)
+	m := NewManager(testPath())
 	m.Init()
 	defer m.Close()
 	rec := &Log{
@@ -79,14 +80,14 @@ func TestManager_Add(t *testing.T) {
 		Value: []byte{'v', 'a', 'l', 'u', 'e'},
 	}
 	m.Add(rec)
-
-	data, err := ioutil.ReadFile(fmt.Sprintf("%vwal%c0", path, os.PathSeparator))
+	filePath := path.Join(testPath(), "wal", "0.log")
+	data, err := ioutil.ReadFile(filePath)
 	a.ErrorIs(err, nil)
 	a.Equal(len(rec.Key)+len(rec.Value)+LogHeaderSize+BlockHeaderSize, len(data))
 	crc := binary.LittleEndian.Uint32(data[0:4])
 	size := binary.LittleEndian.Uint16(data[4:6])
 	a.Equal(typeFull, data[6])
-	expectedLen := uint16(len(rec.Key) + len(rec.Value) + 9)
+	expectedLen := uint16(len(rec.Key) + len(rec.Value) + LogHeaderSize)
 	a.Equal(expectedLen, size)
 	a.Equal(crc32.ChecksumIEEE(data[7:7+size]), crc)
 }
@@ -97,7 +98,6 @@ func TestManager_RecoverLogs(t *testing.T) {
 	path := testPath()
 	m := NewManager(path)
 	m.Init()
-	defer m.Close()
 	a := assert.New(t)
 	recCount := 1
 	for i := 0; i < recCount; i++ {
@@ -108,6 +108,7 @@ func TestManager_RecoverLogs(t *testing.T) {
 		}
 		m.Add(rec)
 	}
+	m.Close()
 	it, err := m.GetRecoverIterator()
 	a.NotNil(it)
 	logs := make([]*Log, 0)

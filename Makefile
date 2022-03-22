@@ -8,7 +8,7 @@ winbuild:
 clean: 
 	rm -f ./$(executable)
 
-test:
+test: build
 	go clean -testcache && go test -v ./...
 
 run: build

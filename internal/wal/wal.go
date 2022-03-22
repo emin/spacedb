@@ -16,15 +16,12 @@ const BlockSize = 32 * 1024
 const BlockHeaderSize = 7
 const BlockPayloadSize = BlockSize - BlockHeaderSize
 const flushOnWrite = true
-const LogHeaderSize = 9
+const LogHeaderSize = 8
 
 const typeFull uint8 = 1
 const typeFirst uint8 = 2
 const typeMiddle uint8 = 3
 const typeLast uint8 = 4
-
-const logDelete uint8 = 1
-const logAdd uint8 = 2
 
 // WAL blocks which will be stored into disk
 type Block struct {
@@ -36,9 +33,8 @@ type Block struct {
 
 // WAL Log data model
 type Log struct {
-	Key      []byte
-	Value    []byte
-	IsDelete bool
+	Key   []byte
+	Value []byte
 }
 
 // Write-Ahead-Log Manager
@@ -89,14 +85,14 @@ func (m *Manager) Init() {
 // Creates a new WAL file and maintain counter for WAL files.
 // After this call newly created file will be used for logs
 func (m *Manager) createNewFile() {
-	p := fmt.Sprintf("%v/wal/%v.log", m.dbPath, m.counter)
+	p := path.Join(m.dbPath, "wal", fmt.Sprintf("%v.log", m.counter))
 	for {
 		_, err := os.Stat(p)
 		if os.IsNotExist(err) {
 			break
 		}
 		m.counter++
-		p = fmt.Sprintf("%v/wal/%v.log", m.dbPath, m.counter)
+		p = path.Join(m.dbPath, "wal", fmt.Sprintf("%v.log", m.counter))
 	}
 	log.Println("Creating new WAL file:", p)
 	f, err := os.Create(p)
@@ -129,7 +125,7 @@ func (m *Manager) Add(l *Log) error {
 }
 
 func (m *Manager) GetCurrentWalPath() string {
-	currentPath := fmt.Sprintf("%v/wal/current", m.dbPath)
+	currentPath := path.Join(m.dbPath, "wal", "current")
 	data, err := ioutil.ReadFile(currentPath)
 	if err != nil {
 		log.Println(err)
@@ -141,7 +137,7 @@ func (m *Manager) GetCurrentWalPath() string {
 // Returns a FileIterator which can be used to iterate WAL files
 // to recover the data
 func (m *Manager) GetRecoverIterator() (*FileIterator, error) {
-	dir := fmt.Sprintf("%v/wal/", m.dbPath)
+	dir := path.Join(m.dbPath, "wal")
 	if _, err := os.Stat(dir); err != nil {
 		return nil, nil
 	}
@@ -175,11 +171,11 @@ func (m *Manager) GetRecoverIterator() (*FileIterator, error) {
 	}
 	for _, f := range files {
 		if !f.IsDir() && strings.HasSuffix(f.Name(), ".log") {
-
-			fPath := fmt.Sprintf("%v%v", dir, f.Name())
+			fPath := path.Join(dir, f.Name())
 			fPathNew := fPath + ".old"
 			err := os.Rename(fPath, fPathNew)
 			if err != nil {
+				log.Printf(err.Error())
 				log.Fatalf("Failed to rename file %v", fPath)
 			}
 			it.filePaths = append(it.filePaths, fPathNew)

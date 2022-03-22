@@ -1,19 +1,22 @@
 package internal
 
 import (
-	"fmt"
 	"log"
 	"os"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func testPath() string {
-	return fmt.Sprintf("%v%cdb-path%c", os.TempDir(), os.PathSeparator, os.PathSeparator)
+	return path.Join(os.TempDir(), "db-path")
 }
 
 func beforeTest() {
+	if info, err := os.Stat(testPath()); err == nil && info.IsDir() {
+		os.RemoveAll(testPath())
+	}
 	err := os.Mkdir(testPath(), 0774)
 	if err != nil {
 		log.Fatal(err)
@@ -38,6 +41,8 @@ func TestSSTable_Save(t *testing.T) {
 	err := ss.Save(l)
 	ss.CloseFile()
 	assert.Nil(t, err)
+
+	// TODO: check file content
 }
 
 func TestSSTable_ReadFooter(t *testing.T) {
@@ -88,6 +93,7 @@ func TestSSTable_FindKeyInIndex(t *testing.T) {
 	l.Set([]byte("ab1"), []byte("test3"))
 	err := ss.Save(l)
 	assert.Nil(t, err)
+	defer ss.CloseFile()
 
 	pos, err := ss.FindKeyInIndex([]byte("ab1"))
 	assert.Nil(t, err)
@@ -108,6 +114,7 @@ func TestSSTable_ReadValueAt(t *testing.T) {
 	l.Set([]byte("ab1"), []byte("test3"))
 	err := ss.Save(l)
 	assert.Nil(t, err)
+	defer ss.CloseFile()
 
 	tests := []struct {
 		key  []byte

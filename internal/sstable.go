@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"log"
 	"os"
 	"path"
 
@@ -27,12 +26,12 @@ type SSTable struct {
 }
 
 type FooterBlock struct {
-	DataOffset  int64
-	DataLength  int64
-	IndexOffset int64
-	IndexLength int64
-	MetaOffset  int64
-	MetaLength  int64
+	DataOffset  uint64
+	DataLength  uint64
+	IndexOffset uint64
+	IndexLength uint64
+	MetaOffset  uint64
+	MetaLength  uint64
 }
 
 type IndexBlock struct {
@@ -282,10 +281,6 @@ func (t *SSTable) FindKeyInIndex(key []byte) (uint64, error) {
 	idxLen := int64(t.footerBlock.IndexLength)
 	i := 0
 
-	defer func() {
-		log.Printf("Looked up %d keys in %v\n", i, t.file.Name())
-	}()
-
 	for c < idxLen {
 
 		keyLen, err := helpers.ReadUint32(rdr)
@@ -385,11 +380,11 @@ func (t *SSTable) ReadFooter() error {
 
 	t.footerBlock = &FooterBlock{
 		DataOffset:  0,
-		DataLength:  int64(dataLen),
-		IndexOffset: int64(dataLen),
-		IndexLength: int64(indexLen),
-		MetaOffset:  int64(dataLen + indexLen),
-		MetaLength:  int64(metaLen),
+		DataLength:  uint64(dataLen),
+		IndexOffset: uint64(dataLen),
+		IndexLength: uint64(indexLen),
+		MetaOffset:  uint64(dataLen + indexLen),
+		MetaLength:  uint64(metaLen),
 	}
 
 	return nil
