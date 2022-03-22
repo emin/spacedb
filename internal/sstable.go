@@ -90,6 +90,7 @@ func NewSSTable(dbPath string, name string) *SSTable {
 // TODO: add key count to meta block
 // TODO: add creation order index to meta block
 // TODO: add compression support
+// TODO: variable length ints
 
 func (t *SSTable) Save(table MemTable) error {
 	fPath := path.Join(t.dbPath, t.name)
