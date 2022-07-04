@@ -21,7 +21,7 @@ func (b *BitSet) Get(index int) bool {
 	return (b.bits[arIdx] & (1 << bitIdx)) != 0
 }
 
-func (b *BitSet) GetRange(index int, len int) uint64 {
+func (b *BitSet) GetRange(index int, length int) uint64 {
 	if index < 0 {
 		return 0
 	}
@@ -30,15 +30,15 @@ func (b *BitSet) GetRange(index int, len int) uint64 {
 	}
 	arIdx := int(index / 64)
 	bitIdx := int(index % 64)
-	rem := len
+	rem := length
 	val := uint64(0)
 	offset := 0
-	for rem > 0 {
+	for rem > 0 && arIdx < len(b.bits) {
 		l := 64 - bitIdx
 		if l > rem {
 			l = rem
 		}
-		mask := ^(^uint64(0) >> (64 - (l + bitIdx)) & (^uint64(0) << bitIdx))
+		mask := (^uint64(0) >> (64 - (l + bitIdx)) & (^uint64(0) << bitIdx))
 		v := b.bits[arIdx] & mask
 		nVal := v >> bitIdx
 		nVal <<= offset
@@ -83,7 +83,7 @@ func (b *BitSet) Set(index int64, value bool) {
 	}
 }
 
-func (b *BitSet) SetRange(index int64, len int, value uint64) {
+func (b *BitSet) SetRange(index int64, length int, value uint64) {
 	if index < 0 {
 		return
 	}
@@ -94,7 +94,7 @@ func (b *BitSet) SetRange(index int64, len int, value uint64) {
 	arIdx := int(index / 64)
 	bitIdx := int(index % 64)
 	val := value
-	rem := len
+	rem := length
 	for rem > 0 {
 		l := 64 - bitIdx
 		if l > rem {
