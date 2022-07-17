@@ -11,9 +11,9 @@ import (
 	"github.com/emin/spacedb/helpers"
 )
 
-// echo gorocks | sha256sum
-// b9ebfbc20ef278a235a18f4fc160e1038a8e8a2ab90f4978666bab2203d4bfdf
-const MagicNumber uint32 = 0x3d4bfdf
+// echo spacedb | sha256sum
+// 3ea370ccd0bfa0298a144f0324a944e348e555d67200d2645a02f03cde67a09f
+const MagicNumber uint32 = 0xde67a09f
 
 type SSTable struct {
 	dbPath      string

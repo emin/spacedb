@@ -94,7 +94,7 @@ func (m *Manager) createNewFile() {
 		m.counter++
 		p = path.Join(m.dbPath, "wal", fmt.Sprintf("%v.log", m.counter))
 	}
-	log.Println("Creating new WAL file:", p)
+
 	f, err := os.Create(p)
 	if err != nil {
 		log.Fatal(err)
@@ -175,7 +175,6 @@ func (m *Manager) GetRecoverIterator() (*FileIterator, error) {
 			fPathNew := fPath + ".old"
 			err := os.Rename(fPath, fPathNew)
 			if err != nil {
-				log.Printf(err.Error())
 				log.Fatalf("Failed to rename file %v", fPath)
 			}
 			it.filePaths = append(it.filePaths, fPathNew)

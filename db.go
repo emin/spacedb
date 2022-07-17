@@ -9,9 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/emin/spacedb/helpers"
 	"github.com/emin/spacedb/internal"
 	"github.com/emin/spacedb/internal/wal"
 )
@@ -51,7 +49,7 @@ type SpaceDBImpl struct {
 	rwLock          *sync.RWMutex
 	walManager      *wal.Manager
 	curMemTable     internal.MemTable
-	sstableMetadata []*internal.MetaBlock
+	sstableMetadata [][]*internal.MetaBlock
 	curFileNum      int
 }
 
@@ -61,7 +59,7 @@ func New(dbPath string) SpaceDB {
 		rwLock:          &sync.RWMutex{},
 		walManager:      walManager,
 		curMemTable:     internal.NewMemTable(),
-		sstableMetadata: []*internal.MetaBlock{},
+		sstableMetadata: [][]*internal.MetaBlock{},
 	}
 
 	it, err := db.walManager.GetRecoverIterator()
@@ -103,43 +101,58 @@ func (g *SpaceDBImpl) loadSSTableMetaData() error {
 		return err
 	}
 
-	sort.Slice(files, func(a, b int) bool {
-		fA := files[a].Name()
-		fB := files[b].Name()
-		if !strings.HasSuffix(fA, ".db") || !strings.HasSuffix(fB, ".db") {
-			return false
-		}
-
-		fA = strings.TrimSuffix(fA, ".db")
-		fB = strings.TrimSuffix(fB, ".db")
-
-		f1, err := strconv.ParseInt(fA, 10, 64)
-		if err != nil {
-			log.Println(err)
-			return false
-		}
-		f2, err := strconv.ParseInt(fB, 10, 64)
-		if err != nil {
-			log.Println(err)
-			return false
-		}
-		return f1 < f2
-	})
-
-	for _, f := range files {
-		if !f.IsDir() && strings.HasSuffix(f.Name(), ".db") {
-			table := internal.NewSSTable(g.dbPath, f.Name())
-			err := table.ReadMeta()
-			if err != nil {
-				return err
+	for i := 0; i < 10; i++ {
+		levelPrefix := fmt.Sprintf("%v_", i)
+		levelFiles := []os.DirEntry{}
+		for _, f := range files {
+			if strings.HasSuffix(f.Name(), ".db") && strings.HasPrefix(f.Name(), levelPrefix) {
+				levelFiles = append(levelFiles, f)
 			}
-			g.sstableMetadata = append(g.sstableMetadata, &internal.MetaBlock{
-				FileName: f.Name(),
-				MinKey:   table.MinKey,
-				MaxKey:   table.MaxKey,
-				KeyCount: table.KeyCount,
-			})
 		}
+
+		sort.Slice(levelFiles, func(a, b int) bool {
+			fA := levelFiles[a].Name()
+			fB := levelFiles[b].Name()
+			if !strings.HasSuffix(fA, ".db") || !strings.HasSuffix(fB, ".db") {
+				return false
+			}
+
+			fA = strings.TrimSuffix(fA, ".db")
+			fA = strings.TrimPrefix(fA, levelPrefix)
+			fB = strings.TrimSuffix(fB, ".db")
+			fB = strings.TrimPrefix(fB, levelPrefix)
+
+			f1, err := strconv.ParseInt(fA, 10, 64)
+			if err != nil {
+				log.Println(err)
+				return false
+			}
+			f2, err := strconv.ParseInt(fB, 10, 64)
+			if err != nil {
+				log.Println(err)
+				return false
+			}
+			return f1 < f2
+		})
+
+		g.sstableMetadata = append(g.sstableMetadata, []*internal.MetaBlock{})
+
+		for _, f := range levelFiles {
+			if !f.IsDir() && strings.HasSuffix(f.Name(), ".db") {
+				table := internal.NewSSTable(g.dbPath, f.Name())
+				err := table.ReadMeta()
+				if err != nil {
+					return err
+				}
+				g.sstableMetadata[i] = append(g.sstableMetadata[i], &internal.MetaBlock{
+					FileName: f.Name(),
+					MinKey:   table.MinKey,
+					MaxKey:   table.MaxKey,
+					KeyCount: table.KeyCount,
+				})
+			}
+		}
+
 	}
 
 	return nil
@@ -176,24 +189,27 @@ func (g *SpaceDBImpl) Get(key []byte) *DBValue {
 	}
 
 	// can't find in memtable, find in sstables
-	for i := len(g.sstableMetadata) - 1; i >= 0; i-- {
-		m := g.sstableMetadata[i]
+	for _, meta := range g.sstableMetadata {
+		for i := len(meta) - 1; i >= 0; i-- {
+			m := meta[i]
 
-		// log.Printf("searching in %v min: %v max: %v\n", m.FileName, string(*m.MinKey), string(*m.MaxKey))
-		if bytes.Compare(key, *m.MinKey) >= 0 && bytes.Compare(key, *m.MaxKey) <= 0 {
-			table := internal.NewSSTable(g.dbPath, m.FileName)
-			defer table.CloseFile()
-			pos, err := table.FindKeyInIndex(key)
-			if err == internal.ErrIndexNotFound {
-				continue
+			// log.Printf("searching in %v min: %v max: %v\n", m.FileName, string(*m.MinKey), string(*m.MaxKey))
+			if bytes.Compare(key, *m.MinKey) >= 0 && bytes.Compare(key, *m.MaxKey) <= 0 {
+				table := internal.NewSSTable(g.dbPath, m.FileName)
+				defer table.CloseFile()
+				pos, err := table.FindKeyInIndex(key)
+				if err == internal.ErrIndexNotFound {
+					continue
+				}
+				val, err := table.ReadValueAt(pos)
+				if err != nil {
+					log.Println(err)
+					return nil
+				}
+				return Deserialize(val)
 			}
-			val, err := table.ReadValueAt(pos)
-			if err != nil {
-				log.Println(err)
-				return nil
-			}
-			return Deserialize(val)
 		}
+
 	}
 
 	return nil
@@ -221,8 +237,10 @@ func (g *SpaceDBImpl) Delete(key []byte) error {
 
 func (g *SpaceDBImpl) KeyCount() int64 {
 	count := g.curMemTable.KeyCount()
-	for _, m := range g.sstableMetadata {
-		count += m.KeyCount
+	for _, meta := range g.sstableMetadata {
+		for _, m := range meta {
+			count += m.KeyCount
+		}
 	}
 	return count
 }
@@ -232,8 +250,7 @@ func (g *SpaceDBImpl) Close() {
 }
 
 func (g *SpaceDBImpl) switchMemTable() {
-	defer helpers.TimeTrack("memtable switch", time.Now())
-	fileName := fmt.Sprintf("%v.db", g.curFileNum)
+	fileName := fmt.Sprintf("0_%v.db", g.curFileNum)
 	table := internal.NewSSTable(g.dbPath, fileName)
 	err := table.Save(g.curMemTable)
 	if err != nil {
@@ -241,7 +258,7 @@ func (g *SpaceDBImpl) switchMemTable() {
 		return
 	}
 
-	g.sstableMetadata = append(g.sstableMetadata, &internal.MetaBlock{
+	g.sstableMetadata[0] = append(g.sstableMetadata[0], &internal.MetaBlock{
 		FileName: fileName,
 		MinKey:   table.MinKey,
 		MaxKey:   table.MaxKey,

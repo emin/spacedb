@@ -8,6 +8,9 @@ winbuild:
 clean: 
 	rm -f ./$(executable)
 
+wipe: clean
+	rm -rf ./test-db && mkdir ./test-db
+
 test: build
 	go clean -testcache && go test -v ./...
 
@@ -16,12 +19,3 @@ run: build
 
 profile:
 	go test -bench=. ./skiplist
-
-clean_delta:
-	rm -f ./delta
-
-build_delta: clean_delta
-	go build -o delta cmd/delta_encoding.go
-
-delta: build_delta
-	./delta
