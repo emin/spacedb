@@ -2,25 +2,19 @@ package main
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 )
 
 func main() {
 
 	buf := bytes.NewBuffer(nil)
-	buf2 := bytes.NewBuffer(nil)
+
 	for i := 0; i < 10_000_000; i++ {
-		raw := make([]byte, 8)
-		binary.LittleEndian.PutUint64(raw, uint64(i))
-		buf.Write(raw)
-		encoded := make([]byte, binary.MaxVarintLen64)
-		n := binary.PutUvarint(encoded, uint64(i))
-		buf2.Write(encoded[:n])
+		buf.Write([]byte(fmt.Sprintf("k%v", i)))
+		buf.Write([]byte(fmt.Sprintf("value = %v", i)))
 	}
 
 	PrintBytes("raw", buf.Len())
-	PrintBytes("encoded", buf2.Len())
 
 	// for i := 0; i < 1_000_000; i++ {
 	// 	n, err := binary.ReadUvarint(buf2)

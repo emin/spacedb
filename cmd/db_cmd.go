@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	gokvdb "github.com/emin/go-kv-db"
-	"github.com/emin/go-kv-db/helpers"
+	"github.com/emin/spacedb"
+	"github.com/emin/spacedb/helpers"
 )
 
-func main2() {
+func main() {
 
 	memProf := flag.String("memprofile", "", "write memory profile to this file")
 	cpuProf := flag.String("cpuprofile", "", "write cpu profile to this file")
@@ -30,7 +30,7 @@ func main2() {
 	}
 
 	dbPath := "test-db/"
-	db := gokvdb.New(dbPath)
+	db := spacedb.New(dbPath)
 
 	//now := time.Now()
 	//for i := 0; i < 1000000; i++ {
@@ -62,7 +62,7 @@ func main2() {
 	}
 }
 
-func runCmd(db gokvdb.GoDB, cmd string) bool {
+func runCmd(db spacedb.SpaceDB, cmd string) bool {
 	defer helpers.TimeTrack("query", time.Now())
 
 	cmd = strings.Trim(cmd, " ")
@@ -82,7 +82,7 @@ func runCmd(db gokvdb.GoDB, cmd string) bool {
 	} else if parts[0] == "set" && len(parts) == 3 {
 		k := []byte(parts[1])
 		v := []byte(parts[2])
-		err := db.Set(k, &gokvdb.DBValue{
+		err := db.Set(k, &spacedb.DBValue{
 			Value: v,
 		})
 		if err != nil {
@@ -103,7 +103,7 @@ func runCmd(db gokvdb.GoDB, cmd string) bool {
 		for i := 0; i < 10_000_000; i++ {
 			k := fmt.Sprintf("k%v", i)
 			v := fmt.Sprintf("value = %v", i)
-			db.Set([]byte(k), &gokvdb.DBValue{Value: []byte(v)})
+			db.Set([]byte(k), &spacedb.DBValue{Value: []byte(v)})
 		}
 	} else if cmd == "count" {
 		fmt.Printf("Estimated Key Count: %v\n", db.KeyCount())
@@ -111,7 +111,7 @@ func runCmd(db gokvdb.GoDB, cmd string) bool {
 		for i := 0; i < 10; i++ {
 			k := fmt.Sprintf("key%v", i)
 			v := fmt.Sprintf("value%v", i)
-			db.Set([]byte(k), &gokvdb.DBValue{Value: []byte(v)})
+			db.Set([]byte(k), &spacedb.DBValue{Value: []byte(v)})
 		}
 	} else if cmd == "exit" {
 		db.Close()

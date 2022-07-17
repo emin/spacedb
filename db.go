@@ -1,4 +1,4 @@
-package gokvdb
+package spacedb
 
 import (
 	"bytes"
@@ -9,9 +9,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
-	"github.com/emin/go-kv-db/internal"
-	"github.com/emin/go-kv-db/internal/wal"
+	"github.com/emin/spacedb/helpers"
+	"github.com/emin/spacedb/internal"
+	"github.com/emin/spacedb/internal/wal"
 )
 
 const MaxMemTableSize int64 = 4 * 1024 * 1024 // 4MB
@@ -36,7 +38,7 @@ func Deserialize(d []byte) *DBValue {
 	}
 }
 
-type GoDB interface {
+type SpaceDB interface {
 	Set(key []byte, value *DBValue) error
 	Get(key []byte) *DBValue
 	Delete(key []byte) error
@@ -44,7 +46,7 @@ type GoDB interface {
 	Close()
 }
 
-type GoDBImpl struct {
+type SpaceDBImpl struct {
 	dbPath          string
 	rwLock          *sync.RWMutex
 	walManager      *wal.Manager
@@ -53,9 +55,9 @@ type GoDBImpl struct {
 	curFileNum      int
 }
 
-func New(dbPath string) GoDB {
+func New(dbPath string) SpaceDB {
 	walManager := wal.NewManager(dbPath)
-	db := &GoDBImpl{dbPath: dbPath,
+	db := &SpaceDBImpl{dbPath: dbPath,
 		rwLock:          &sync.RWMutex{},
 		walManager:      walManager,
 		curMemTable:     internal.NewMemTable(),
@@ -92,7 +94,7 @@ func New(dbPath string) GoDB {
 	return db
 }
 
-func (g *GoDBImpl) loadSSTableMetaData() error {
+func (g *SpaceDBImpl) loadSSTableMetaData() error {
 	if _, err := os.Stat(g.dbPath); err != nil {
 		return err
 	}
@@ -143,7 +145,7 @@ func (g *GoDBImpl) loadSSTableMetaData() error {
 	return nil
 }
 
-func (g *GoDBImpl) Set(key []byte, value *DBValue) error {
+func (g *SpaceDBImpl) Set(key []byte, value *DBValue) error {
 	g.rwLock.Lock()
 	defer g.rwLock.Unlock()
 
@@ -165,7 +167,7 @@ func (g *GoDBImpl) Set(key []byte, value *DBValue) error {
 	return nil
 }
 
-func (g *GoDBImpl) Get(key []byte) *DBValue {
+func (g *SpaceDBImpl) Get(key []byte) *DBValue {
 	g.rwLock.RLock()
 	defer g.rwLock.RUnlock()
 	val := g.curMemTable.Get(key)
@@ -197,7 +199,7 @@ func (g *GoDBImpl) Get(key []byte) *DBValue {
 	return nil
 }
 
-func (g *GoDBImpl) Delete(key []byte) error {
+func (g *SpaceDBImpl) Delete(key []byte) error {
 	g.rwLock.Lock()
 	defer g.rwLock.Unlock()
 
@@ -217,7 +219,7 @@ func (g *GoDBImpl) Delete(key []byte) error {
 	return nil
 }
 
-func (g *GoDBImpl) KeyCount() int64 {
+func (g *SpaceDBImpl) KeyCount() int64 {
 	count := g.curMemTable.KeyCount()
 	for _, m := range g.sstableMetadata {
 		count += m.KeyCount
@@ -225,13 +227,13 @@ func (g *GoDBImpl) KeyCount() int64 {
 	return count
 }
 
-func (g *GoDBImpl) Close() {
+func (g *SpaceDBImpl) Close() {
 	panic("implement me")
 }
 
-func (g *GoDBImpl) switchMemTable() {
+func (g *SpaceDBImpl) switchMemTable() {
+	defer helpers.TimeTrack("memtable switch", time.Now())
 	fileName := fmt.Sprintf("%v.db", g.curFileNum)
-	log.Println("switching memtable to file: ", fileName)
 	table := internal.NewSSTable(g.dbPath, fileName)
 	err := table.Save(g.curMemTable)
 	if err != nil {
@@ -252,8 +254,7 @@ func (g *GoDBImpl) switchMemTable() {
 	g.curFileNum++
 }
 
-func (g *GoDBImpl) clearWAL(path string) {
-	log.Println("removing wal file: ", path)
+func (g *SpaceDBImpl) clearWAL(path string) {
 	_, err := os.Stat(path)
 	if os.IsNotExist(err) {
 		return

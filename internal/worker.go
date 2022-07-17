@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/emin/go-kv-db/internal/wal"
+	"github.com/emin/spacedb/internal/wal"
 )
 
 type SwitchRequest struct {

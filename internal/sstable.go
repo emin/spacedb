@@ -8,7 +8,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/emin/go-kv-db/helpers"
+	"github.com/emin/spacedb/helpers"
 )
 
 // echo gorocks | sha256sum
